@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/danielpaulus/go-ios/usbmux"
 	"github.com/danielpaulus/quicktime_video_hack/screencapture"
 	"github.com/danielpaulus/quicktime_video_hack/screencapture/coremedia"
 	log "github.com/sirupsen/logrus"
@@ -11,6 +12,13 @@ import (
 	"os"
 	"os/signal"
 )
+
+type detailsEntry struct {
+	Udid           string
+	ProductName    string
+	ProductType    string
+	ProductVersion string
+}
 
 func main() {
 	log.SetLevel(log.InfoLevel)
@@ -48,26 +56,37 @@ func startWebSocketServer(addr string, dir string) {
 	s.Shutdown(context.Background())
 }
 
-// Just dump a list of what was discovered to the console
+func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {
+	muxConnection := usbmux.NewUsbMuxConnection()
+	defer muxConnection.Close()
+
+	pairRecord := muxConnection.ReadPair(device.Properties.SerialNumber)
+
+	lockdownConnection, err := muxConnection.ConnectLockdown(device.DeviceID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	lockdownConnection.StartSession(pairRecord)
+
+	allValues := lockdownConnection.GetValues()
+	lockdownConnection.StopSession()
+	return allValues
+}
+
 func devices() []byte {
-	deviceList, err := screencapture.FindIosDevices()
-	if err != nil {
-		printErrJSON(err, "Error finding iOS Devices")
+	deviceList := usbmux.ListDevices()
+	result := make([]detailsEntry, len(deviceList.DeviceList))
+	for i, device := range deviceList.DeviceList {
+		udid := device.Properties.SerialNumber
+		allValues := getValues(device)
+		result[i] = detailsEntry{udid, allValues.Value.ProductName, allValues.Value.ProductType, allValues.Value.ProductVersion}
 	}
-	log.Debugf("Found (%d) iOS Devices with UsbMux Endpoint", len(deviceList))
-
-	if err != nil {
-		printErrJSON(err, "Error finding iOS Devices")
-	}
-	output := screencapture.PrintDeviceDetails(deviceList)
-
-	text, err := json.Marshal(output)
+	text, err := json.Marshal(result)
 	if err != nil {
 		log.Fatalf("Broken json serialization, error: %s", err)
 	}
 	return text
 }
-
 
 // This command is for testing if we can enable the hidden Quicktime device config
 func activate(udid string) []byte {

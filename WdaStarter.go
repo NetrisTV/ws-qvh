@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	log "github.com/sirupsen/logrus"
@@ -96,9 +97,9 @@ func (w *Writer) Start(udid string, c chan []byte) {
 		"-scheme",
 		"WebDriverAgentRunner",
 		"-destination",
-		"id=" + udid,
+		"id=" + string(bytes.Trim([]byte (udid), "\x00")),
 		"-xcconfig",
-		"./ws-qhv-wda.xcconfig")
+		"./wda-build.xcconfig")
 	//cmd := exec.Command("cat", "sample.log")
 	//cmd := exec.Command("./test.sh")
 	var out Writer
@@ -112,6 +113,7 @@ func (w *Writer) Start(udid string, c chan []byte) {
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
+		w.result <- nil
 		return
 	}
 	go func() {
