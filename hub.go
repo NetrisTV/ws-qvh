@@ -7,6 +7,12 @@ import (
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
+	stopSignal chan interface{}
+
+	receivers map[string]*ReceiverHub
+
+	wdagents map[string]*WdaHub
+
 	// Registered clients.
 	clients map[*Client]bool
 
@@ -18,7 +24,6 @@ type Hub struct {
 
 	// Unregister requests from clients.
 	unregister chan *Client
-
 }
 
 func newHub() *Hub {
@@ -27,10 +32,35 @@ func newHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
+		receivers:  make(map[string]*ReceiverHub),
+		wdagents:   make(map[string]*WdaHub),
 	}
 }
 
+func (h *Hub) getOrCreateReceiver(udid string) *ReceiverHub {
+	var receiver *ReceiverHub
+	receiver = h.receivers[udid]
+	if receiver != nil {
+		return receiver
+	}
+	receiver = NewReceiver(h.stopSignal, udid)
+	h.receivers[udid] = receiver
+	return receiver
+}
+
+func (h *Hub) getOrCreateWdAgent(udid string) *WdaHub {
+	var wda *WdaHub
+	wda = h.wdagents[udid]
+	if wda != nil {
+		return wda
+	}
+	wda = NewWdaHub(h.stopSignal, udid)
+	h.wdagents[udid] = wda
+	return wda
+}
+
 func (h *Hub) run(stopSignal chan interface{}) {
+	h.stopSignal = stopSignal
 	for {
 		select {
 		case <-stopSignal:

@@ -16,7 +16,7 @@ const (
 	End = "<-ServerURLHere"
 )
 
-type Writer struct {
+type WdaProcess struct {
 	result chan []byte
 	str []rune
 	pos int
@@ -26,7 +26,7 @@ type Writer struct {
 	found bool
 }
 
-func (w *Writer) Write(p []byte) (n int, err error) {
+func (w *WdaProcess) Write(p []byte) (n int, err error) {
 	if w.found {
 		return len(p), nil
 	}
@@ -90,7 +90,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (w *Writer) Start(udid string, c chan []byte) {
+func (w *WdaProcess) Start(udid string) {
 	cmd := exec.Command("xcodebuild", "test-without-building",
 		"-project",
 		"./WebDriverAgent/WebDriverAgent.xcodeproj",
@@ -100,15 +100,7 @@ func (w *Writer) Start(udid string, c chan []byte) {
 		"id=" + string(bytes.Trim([]byte (udid), "\x00")),
 		"-xcconfig",
 		"./wda-build.xcconfig")
-	//cmd := exec.Command("cat", "sample.log")
-	//cmd := exec.Command("./test.sh")
-	var out Writer
-	out.str = []rune(Begin)
-	out.pos = 0
-	out.value = ""
-	out.result = c
-
-	cmd.Stdout = &out
+	cmd.Stdout = w
 
 	err := cmd.Start()
 	if err != nil {
@@ -123,4 +115,13 @@ func (w *Writer) Start(udid string, c chan []byte) {
 			w.result <- nil
 		}
 	}()
+}
+
+func NewWdaProcess(ch chan []byte) *WdaProcess {
+	return &WdaProcess{
+		str: []rune(Begin),
+		pos: 0,
+		value: "",
+		result: ch,
+	}
 }

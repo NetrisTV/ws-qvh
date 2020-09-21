@@ -155,46 +155,18 @@ func (c *Client) stop() {
 }
 
 func (c *Client) runWda(udid string) {
-
-	var out Writer
-	out.str = []rune(Begin)
-	out.pos = 0
-	out.value = ""
-	ch := make(chan []byte)
+	wda := c.hub.getOrCreateWdAgent(udid)
 	go func() {
-		result := <- ch
-		if result != nil {
-			c.send <- result
+		wdaUrl := wda.getWdaUrl()
+		if !c.closed {
+			c.send <- []byte(wdaUrl)
 		}
 	}()
-	go func() {
-		out.Start(udid, ch)
-	}()
-
 }
 
 func (c *Client) stream(udid string) {
-	log.Info("Client stream ", udid)
-	device, err := screencapture.FindIosDevice(udid)
-	if err != nil {
-		c.send <-  toErrJSON(err, "no device found to activate")
-	}
-
-	log.Debugf("Enabling device: %v", device)
-	device, err = screencapture.EnableQTConfig(device)
-	if err != nil {
-		c.send <-  toErrJSON(err, "Error enabling QT config")
-	}
-
-	writer := NewNaluHubWriter(c)
-	adapter := screencapture.UsbAdapter{}
-	stopSignal := make(chan interface{})
-	mp := screencapture.NewMessageProcessor(&adapter, stopSignal, writer, false)
-	c.stopSignal = stopSignal
-	go func() {
-		adapter.StartReading(device, &mp, stopSignal)
-		<- stopSignal
-	}()
+	receiver := c.hub.getOrCreateReceiver(udid)
+	receiver.AddClient(c)
 }
 
 // serveWs handles websocket requests from the peer.

@@ -8,15 +8,15 @@ import (
 
 var startCode = []byte{00, 00, 00, 01}
 
-type NaluHubWriter struct {
-	client *Client
+type NaluWriter struct {
+	receiver *ReceiverHub
 }
 
-func NewNaluHubWriter(cliend *Client) NaluHubWriter {
-	return NaluHubWriter{client: cliend}
+func NewNaluHubWriter(cliend *ReceiverHub) NaluWriter {
+	return NaluWriter{receiver: cliend}
 }
 
-func (nhw NaluHubWriter) consumeVideo(buf coremedia.CMSampleBuffer) error {
+func (nhw NaluWriter) consumeVideo(buf coremedia.CMSampleBuffer) error {
 	if buf.HasFormatDescription {
 		log.Info("PPS " + buf.FormatDescription.String())
 		err := nhw.writeNalu(buf.FormatDescription.PPS)
@@ -34,7 +34,7 @@ func (nhw NaluHubWriter) consumeVideo(buf coremedia.CMSampleBuffer) error {
 	return nhw.writeNalus(buf.SampleData)
 }
 
-func (nhw NaluHubWriter) Consume(buf coremedia.CMSampleBuffer) error {
+func (nhw NaluWriter) Consume(buf coremedia.CMSampleBuffer) error {
 	if buf.MediaType == coremedia.MediaTypeSound {
 		//return nhw.consumeAudio(buf)
 		return nil
@@ -43,7 +43,7 @@ func (nhw NaluHubWriter) Consume(buf coremedia.CMSampleBuffer) error {
 }
 
 
-func (nhw NaluHubWriter) writeNalus(bytes []byte) error {
+func (nhw NaluWriter) writeNalus(bytes []byte) error {
 	slice := bytes
 	for len(slice) > 0 {
 		length := binary.BigEndian.Uint32(slice)
@@ -56,16 +56,16 @@ func (nhw NaluHubWriter) writeNalus(bytes []byte) error {
 	return nil
 }
 
-func (nhw NaluHubWriter) writeNalu(bytes []byte) error {
-	if nhw.client.closed {
+func (nhw NaluWriter) writeNalu(bytes []byte) error {
+	if nhw.receiver.closed {
 		return nil
 	}
 	if len(bytes) > 0 {
-		nhw.client.send <- append(startCode, bytes...)
+		nhw.receiver.send <- append(startCode, bytes...)
 	}
 	return nil
 }
 
-func (nhw NaluHubWriter) Stop() {
+func (nhw NaluWriter) Stop() {
 
 }
