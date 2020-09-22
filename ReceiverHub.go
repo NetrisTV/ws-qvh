@@ -6,75 +6,160 @@ import (
 )
 
 type ReceiverHub struct {
-	udid string
-	streaming bool
-	closed bool
-	send chan []byte
-	clients map[*Client]bool
+	udid       string
+	streaming  bool
+	closed     bool
+	send       chan []byte
+	clients    map[*Client]*ClientStatus
+	stopStream chan interface{}
 	stopSignal chan interface{}
+	writer     *NaluWriter
+	sei        []byte
+	pps        []byte
+	sps        []byte
+}
+
+type ClientStatus struct {
+	gotPPS    bool
+	gotSPS    bool
+	gotSEI    bool
+	gotIFrame bool
 }
 
 func NewReceiver(stopSignal chan interface{}, udid string) *ReceiverHub {
 	return &ReceiverHub{
-		clients:    make(map[*Client]bool),
+		clients:    make(map[*Client]*ClientStatus),
 		send:       make(chan []byte),
 		stopSignal: stopSignal,
 		udid:       udid,
 	}
 }
 
+func (r *ReceiverHub) storeNalu(dst *[]byte, b *[]byte) {
+	*dst = make([]byte, len(*b))
+	copy(*dst, *b)
+}
+
 func (r *ReceiverHub) AddClient(c *Client) {
-	r.clients[c] = true
+	log.Info("receiver.AddClient ", r.streaming)
+	_, ok := r.clients[c]
+	if ok {
+		log.Warn("Client already added")
+		return
+	}
+	status := &ClientStatus{
+		gotPPS:    false,
+		gotSPS:    false,
+		gotIFrame: false,
+	}
+	r.clients[c] = status
 	if !r.streaming {
+		r.streaming = true
+		r.stopStream = make(chan interface{})
+		go r.run()
 		r.stream()
+	} else {
+		pps := r.pps
+		if pps != nil {
+			log.Info("Send stored PPS", len(pps))
+			status.gotPPS = true
+			c.send <- pps
+		} else {
+			log.Info("Stored PPS is nil")
+		}
+		sps := r.sps
+		if sps != nil {
+			log.Info("Send stored SPS", len(sps))
+			status.gotSPS = true
+			c.send <- sps
+		} else {
+			log.Info("Stored SPS is nil")
+		}
 	}
 }
 
 func (r *ReceiverHub) DelClient(c *Client) {
 	delete(r.clients, c)
+	log.Info("receiver.DelClient. ", len(r.clients))
 	if len(r.clients) == 0 {
 		r.streaming = false
+		r.stopStream <- nil
 	}
 }
 
 func (r *ReceiverHub) stream() {
-	if r.streaming {
-		return
-	}
+	log.Info("receiver.stream ", r.streaming)
 	var udid = r.udid
 	log.Info("Client stream ", udid)
 	device, err := screencapture.FindIosDevice(udid)
 	if err != nil {
-		r.send <-  toErrJSON(err, "no device found to activate")
+		r.send <- toErrJSON(err, "no device found to activate")
 	}
 
 	log.Debugf("Enabling device: %v", device)
 	device, err = screencapture.EnableQTConfig(device)
 	if err != nil {
-		r.send <-  toErrJSON(err, "Error enabling QT config")
+		r.send <- toErrJSON(err, "Error enabling QT config")
 	}
-
-	r.streaming = true
-	writer := NewNaluHubWriter(r)
+	r.writer = NewNaluWriter(r)
 	adapter := screencapture.UsbAdapter{}
-	stopSignal := r.stopSignal
-	mp := screencapture.NewMessageProcessor(&adapter, stopSignal, writer, false)
+	mp := screencapture.NewMessageProcessor(&adapter, r.stopStream, r.writer, false)
 	go func() {
-		adapter.StartReading(device, &mp, stopSignal)
-		<- stopSignal
+		adapter.StartReading(device, &mp, r.stopStream)
+		//<- stopSignal
 	}()
 }
 
-func (r ReceiverHub) run() {
+func (r *ReceiverHub) run() {
+	log.Info("receiver.run ", r.streaming)
 	for {
 		select {
-		case <- r.stopSignal:
+		case <-r.stopSignal:
 			for client := range r.clients {
 				delete(r.clients, client)
 			}
-		case data := <- r.send:
-			for client := range r.clients {
-				client.send <- data
+		case data := <-r.send:
+			for client, status := range r.clients {
+				naluType := data[4] & 31
+				if naluType == 8 {
+					r.storeNalu(&r.pps, &data)
+				} else if naluType == 7 {
+					r.storeNalu(&r.sps, &data)
+				} else if naluType == 6 {
+					r.storeNalu(&r.sei, &data)
+				}
+				if status.gotIFrame {
+					client.send <- data
+				} else {
+					if !status.gotPPS && r.pps != nil {
+						status.gotPPS = true
+						client.send <- r.pps
+						if naluType == 8 {
+							continue
+						}
+					}
+					if !status.gotSPS && r.sps != nil {
+						status.gotSPS = true
+						client.send <- r.sps
+						if naluType == 7 {
+							continue
+						}
+					}
+					if !status.gotSEI && r.sei != nil {
+						status.gotSEI = true
+						client.send <- r.sei
+						if naluType == 6 {
+							continue
+						}
+					}
+					isIframe := naluType == 5
+					if status.gotPPS && status.gotSPS && status.gotSEI && isIframe {
+						status.gotIFrame = true
+						client.send <- data
+					} else {
+						// log.Info("Receiver. ", "skipping frame for client: ", naluType)
+					}
+				}
 			}
 		}
 	}

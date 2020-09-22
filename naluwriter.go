@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"github.com/danielpaulus/quicktime_video_hack/screencapture/coremedia"
-	log "github.com/sirupsen/logrus"
 )
 
 var startCode = []byte{00, 00, 00, 01}
@@ -12,42 +11,43 @@ type NaluWriter struct {
 	receiver *ReceiverHub
 }
 
-func NewNaluHubWriter(cliend *ReceiverHub) NaluWriter {
-	return NaluWriter{receiver: cliend}
+func NewNaluWriter(cliend *ReceiverHub) *NaluWriter {
+	return &NaluWriter{receiver: cliend}
 }
 
-func (nhw NaluWriter) consumeVideo(buf coremedia.CMSampleBuffer) error {
+func (nw NaluWriter) consumeVideo(buf coremedia.CMSampleBuffer) error {
 	if buf.HasFormatDescription {
-		log.Info("PPS " + buf.FormatDescription.String())
-		err := nhw.writeNalu(buf.FormatDescription.PPS)
+		err := nw.writeNalu(buf.FormatDescription.PPS)
 		if err != nil {
 			return err
 		}
-		err = nhw.writeNalu(buf.FormatDescription.SPS)
+		err = nw.writeNalu(buf.FormatDescription.SPS)
 		if err != nil {
 			return err
 		}
+
 	}
 	if !buf.HasSampleData() {
 		return nil
 	}
-	return nhw.writeNalus(buf.SampleData)
+	return nw.writeNalus(buf.SampleData)
 }
 
-func (nhw NaluWriter) Consume(buf coremedia.CMSampleBuffer) error {
+func (nw NaluWriter) Consume(buf coremedia.CMSampleBuffer) error {
 	if buf.MediaType == coremedia.MediaTypeSound {
-		//return nhw.consumeAudio(buf)
+		// we don't support audio for now
+		//return nw.consumeAudio(buf)
 		return nil
 	}
-	return nhw.consumeVideo(buf)
+	return nw.consumeVideo(buf)
 }
 
 
-func (nhw NaluWriter) writeNalus(bytes []byte) error {
+func (nw NaluWriter) writeNalus(bytes []byte) error {
 	slice := bytes
 	for len(slice) > 0 {
 		length := binary.BigEndian.Uint32(slice)
-		err := nhw.writeNalu(slice[4 : length+4])
+		err := nw.writeNalu(slice[4 : length+4])
 		if err != nil {
 			return err
 		}
@@ -56,16 +56,16 @@ func (nhw NaluWriter) writeNalus(bytes []byte) error {
 	return nil
 }
 
-func (nhw NaluWriter) writeNalu(bytes []byte) error {
-	if nhw.receiver.closed {
+func (nw NaluWriter) writeNalu(bytes []byte) error {
+	if nw.receiver.closed {
 		return nil
 	}
 	if len(bytes) > 0 {
-		nhw.receiver.send <- append(startCode, bytes...)
+		nw.receiver.send <- append(startCode, bytes...)
 	}
 	return nil
 }
 
-func (nhw NaluWriter) Stop() {
+func (nw NaluWriter) Stop() {
 
 }

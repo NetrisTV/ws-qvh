@@ -75,6 +75,18 @@ func (h *Hub) run(stopSignal chan interface{}) {
 		case client := <-h.unregister:
 			log.Info("Hub <- h.unregister")
 			if _, ok := h.clients[client]; ok {
+				receiver := client.receiver
+				if receiver != nil {
+					receiver.DelClient(client)
+					if len(receiver.clients) == 0 {
+						udid := receiver.udid
+						delete(h.receivers, udid)
+						wda := h.wdagents[udid]
+						if wda != nil {
+							delete(h.wdagents, udid)
+						}
+					}
+				}
 				client.stop()
 				delete(h.clients, client)
 				log.Info("Client left. ", len(h.clients))

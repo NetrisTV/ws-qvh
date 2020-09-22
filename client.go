@@ -7,7 +7,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/danielpaulus/quicktime_video_hack/screencapture"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -56,7 +55,7 @@ type Client struct {
 
 	closed bool
 
-	mp *screencapture.MessageProcessor
+	receiver *ReceiverHub
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -95,10 +94,10 @@ func (c *Client) readPump() {
 			case "activate":
 				c.send <- activate(m.UDID)
 			case "stream":
-				log.Info("Start")
+				log.Info("command: \"stream\"")
 				c.stream(m.UDID)
 			case "run-wda":
-				log.Info("Run wda")
+				log.Info("command: \"run-wda\"")
 				c.runWda(m.UDID)
 			default:
 				c.hub.broadcast <- message
@@ -165,8 +164,10 @@ func (c *Client) runWda(udid string) {
 }
 
 func (c *Client) stream(udid string) {
-	receiver := c.hub.getOrCreateReceiver(udid)
-	receiver.AddClient(c)
+	c.receiver = c.hub.getOrCreateReceiver(udid)
+	go func() {
+		c.receiver.AddClient(c)
+	}()
 }
 
 // serveWs handles websocket requests from the peer.
