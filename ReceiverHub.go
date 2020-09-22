@@ -10,7 +10,7 @@ type ReceiverHub struct {
 	streaming  bool
 	closed     bool
 	send       chan []byte
-	clients    map[*Client]*ClientStatus
+	clients    map[*Client]*ClientReceiveStatus
 	stopStream chan interface{}
 	stopSignal chan interface{}
 	writer     *NaluWriter
@@ -19,7 +19,7 @@ type ReceiverHub struct {
 	sps        []byte
 }
 
-type ClientStatus struct {
+type ClientReceiveStatus struct {
 	gotPPS    bool
 	gotSPS    bool
 	gotSEI    bool
@@ -28,59 +28,36 @@ type ClientStatus struct {
 
 func NewReceiver(stopSignal chan interface{}, udid string) *ReceiverHub {
 	return &ReceiverHub{
-		clients:    make(map[*Client]*ClientStatus),
+		clients:    make(map[*Client]*ClientReceiveStatus),
 		send:       make(chan []byte),
 		stopSignal: stopSignal,
 		udid:       udid,
 	}
 }
 
-func (r *ReceiverHub) storeNalu(dst *[]byte, b *[]byte) {
+func (r *ReceiverHub) storeNalUnit(dst *[]byte, b *[]byte) {
 	*dst = make([]byte, len(*b))
 	copy(*dst, *b)
 }
 
 func (r *ReceiverHub) AddClient(c *Client) {
-	log.Info("receiver.AddClient ", r.streaming)
 	_, ok := r.clients[c]
 	if ok {
 		log.Warn("Client already added")
 		return
 	}
-	status := &ClientStatus{
-		gotPPS:    false,
-		gotSPS:    false,
-		gotIFrame: false,
-	}
+	status := &ClientReceiveStatus{}
 	r.clients[c] = status
 	if !r.streaming {
 		r.streaming = true
 		r.stopStream = make(chan interface{})
 		go r.run()
 		r.stream()
-	} else {
-		pps := r.pps
-		if pps != nil {
-			log.Info("Send stored PPS", len(pps))
-			status.gotPPS = true
-			c.send <- pps
-		} else {
-			log.Info("Stored PPS is nil")
-		}
-		sps := r.sps
-		if sps != nil {
-			log.Info("Send stored SPS", len(sps))
-			status.gotSPS = true
-			c.send <- sps
-		} else {
-			log.Info("Stored SPS is nil")
-		}
 	}
 }
 
 func (r *ReceiverHub) DelClient(c *Client) {
 	delete(r.clients, c)
-	log.Info("receiver.DelClient. ", len(r.clients))
 	if len(r.clients) == 0 {
 		r.streaming = false
 		r.stopStream <- nil
@@ -88,9 +65,7 @@ func (r *ReceiverHub) DelClient(c *Client) {
 }
 
 func (r *ReceiverHub) stream() {
-	log.Info("receiver.stream ", r.streaming)
 	var udid = r.udid
-	log.Info("Client stream ", udid)
 	device, err := screencapture.FindIosDevice(udid)
 	if err != nil {
 		r.send <- toErrJSON(err, "no device found to activate")
@@ -111,7 +86,6 @@ func (r *ReceiverHub) stream() {
 }
 
 func (r *ReceiverHub) run() {
-	log.Info("receiver.run ", r.streaming)
 	for {
 		select {
 		case <-r.stopSignal:
@@ -122,11 +96,11 @@ func (r *ReceiverHub) run() {
 			for client, status := range r.clients {
 				naluType := data[4] & 31
 				if naluType == 8 {
-					r.storeNalu(&r.pps, &data)
+					r.storeNalUnit(&r.pps, &data)
 				} else if naluType == 7 {
-					r.storeNalu(&r.sps, &data)
+					r.storeNalUnit(&r.sps, &data)
 				} else if naluType == 6 {
-					r.storeNalu(&r.sei, &data)
+					r.storeNalUnit(&r.sei, &data)
 				}
 				if status.gotIFrame {
 					client.send <- data

@@ -81,10 +81,14 @@ func (h *Hub) run(stopSignal chan interface{}) {
 					if len(receiver.clients) == 0 {
 						udid := receiver.udid
 						delete(h.receivers, udid)
-						wda := h.wdagents[udid]
-						if wda != nil {
-							delete(h.wdagents, udid)
-						}
+					}
+				}
+				wda := client.wda
+				if wda != nil {
+					wda.DelClient(client)
+					if len(wda.clients) == 0 {
+						udid := receiver.udid
+						delete(h.wdagents, udid)
 					}
 				}
 				client.stop()

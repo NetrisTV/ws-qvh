@@ -56,6 +56,8 @@ type Client struct {
 	closed bool
 
 	receiver *ReceiverHub
+
+	wda *WdaHub
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -154,12 +156,9 @@ func (c *Client) stop() {
 }
 
 func (c *Client) runWda(udid string) {
-	wda := c.hub.getOrCreateWdAgent(udid)
+	c.wda = c.hub.getOrCreateWdAgent(udid)
 	go func() {
-		wdaUrl := wda.getWdaUrl()
-		if !c.closed {
-			c.send <- []byte(wdaUrl)
-		}
+		c.wda.AddClient(c)
 	}()
 }
 
