@@ -5,18 +5,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	PPS = 8
+	SPS = 7
+	SEI = 6
+	IDR = 5
+)
+
 type ReceiverHub struct {
-	udid       string
-	streaming  bool
-	closed     bool
-	send       chan []byte
-	clients    map[*Client]*ClientReceiveStatus
-	stopStream chan interface{}
-	stopSignal chan interface{}
-	writer     *NaluWriter
-	sei        []byte
-	pps        []byte
-	sps        []byte
+	udid        string
+	streaming   bool
+	closed      bool
+	send        chan []byte
+	clients     map[*Client]*ClientReceiveStatus
+	stopReading chan interface{}
+	stopSignal  chan interface{}
+	writer      *NaluWriter
+	sei         []byte
+	pps         []byte
+	sps         []byte
 }
 
 type ClientReceiveStatus struct {
@@ -26,11 +33,11 @@ type ClientReceiveStatus struct {
 	gotIFrame bool
 }
 
-func NewReceiver(stopSignal chan interface{}, udid string) *ReceiverHub {
+func NewReceiver(udid string) *ReceiverHub {
 	return &ReceiverHub{
 		clients:    make(map[*Client]*ClientReceiveStatus),
 		send:       make(chan []byte),
-		stopSignal: stopSignal,
+		stopSignal: make(chan interface{}),
 		udid:       udid,
 	}
 }
@@ -50,7 +57,7 @@ func (r *ReceiverHub) AddClient(c *Client) {
 	r.clients[c] = status
 	if !r.streaming {
 		r.streaming = true
-		r.stopStream = make(chan interface{})
+		r.stopReading = make(chan interface{})
 		go r.run()
 		r.stream()
 	}
@@ -59,8 +66,11 @@ func (r *ReceiverHub) AddClient(c *Client) {
 func (r *ReceiverHub) DelClient(c *Client) {
 	delete(r.clients, c)
 	if len(r.clients) == 0 {
+		log.Info("ReceiverHub.DelClient", "No clients")
 		r.streaming = false
-		r.stopStream <- nil
+		r.closed = true
+		// TODO: wait N seconds, then stop screen capture
+		r.stopSignal <- nil
 	}
 }
 
@@ -78,10 +88,13 @@ func (r *ReceiverHub) stream() {
 	}
 	r.writer = NewNaluWriter(r)
 	adapter := screencapture.UsbAdapter{}
-	mp := screencapture.NewMessageProcessor(&adapter, r.stopStream, r.writer, false)
+	mp := screencapture.NewMessageProcessor(&adapter, r.stopReading, r.writer, false)
 	go func() {
-		adapter.StartReading(device, &mp, r.stopStream)
-		//<- stopSignal
+		err := adapter.StartReading(device, &mp, r.stopReading)
+		if err != nil {
+			log.Error("adapter.StartReading(device, &mp, r.stopReading): ", err)
+		}
+		r.writer.Stop()
 	}()
 }
 
@@ -92,46 +105,53 @@ func (r *ReceiverHub) run() {
 			for client := range r.clients {
 				delete(r.clients, client)
 			}
+			r.closed = true
+			r.streaming = false
+			r.stopReading <- nil
 		case data := <-r.send:
 			for client, status := range r.clients {
-				naluType := data[4] & 31
-				if naluType == 8 {
+				send := client.send
+				if send == nil {
+					continue
+				}
+				nalUnitType := data[4] & 31
+				if nalUnitType == PPS {
 					r.storeNalUnit(&r.pps, &data)
-				} else if naluType == 7 {
+				} else if nalUnitType == SPS {
 					r.storeNalUnit(&r.sps, &data)
-				} else if naluType == 6 {
+				} else if nalUnitType == SEI {
 					r.storeNalUnit(&r.sei, &data)
 				}
 				if status.gotIFrame {
-					client.send <- data
+					*send <- data
 				} else {
 					if !status.gotPPS && r.pps != nil {
 						status.gotPPS = true
-						client.send <- r.pps
-						if naluType == 8 {
+						*send <- r.pps
+						if nalUnitType == PPS {
 							continue
 						}
 					}
 					if !status.gotSPS && r.sps != nil {
 						status.gotSPS = true
-						client.send <- r.sps
-						if naluType == 7 {
+						*send <- r.sps
+						if nalUnitType == SPS {
 							continue
 						}
 					}
 					if !status.gotSEI && r.sei != nil {
 						status.gotSEI = true
-						client.send <- r.sei
-						if naluType == 6 {
+						*send <- r.sei
+						if nalUnitType == SEI {
 							continue
 						}
 					}
-					isIframe := naluType == 5
+					isIframe := nalUnitType == IDR
 					if status.gotPPS && status.gotSPS && status.gotSEI && isIframe {
 						status.gotIFrame = true
-						client.send <- data
+						*send <- data
 					} else {
-						// log.Info("Receiver. ", "skipping frame for client: ", naluType)
+						// log.Info("Receiver. ", "skipping frame for client: ", nalUnitType)
 					}
 				}
 			}

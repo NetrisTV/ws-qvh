@@ -19,7 +19,7 @@ type detailsEntry struct {
 }
 
 func main() {
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.DebugLevel)
 	addr := ":8080"
 	dir := "dist"
 	if len(os.Args) > 1 {
@@ -34,9 +34,11 @@ func main() {
 func startWebSocketServer(addr string, dir string) {
 	log.Println("Starting WebSocket server")
 	stopSignal := make(chan interface{})
+	stopHub := make(chan interface{})
+	shutdown := make(chan interface{})
 	waitForSigInt(stopSignal)
 	hub := newHub()
-	go hub.run(stopSignal)
+	go hub.run(stopHub)
 
 	m := http.NewServeMux()
 	s := http.Server{Addr: addr, Handler: m}
@@ -47,11 +49,24 @@ func startWebSocketServer(addr string, dir string) {
 		serveWs(hub, w, r)
 	})
 	go func() {
-		log.Fatal(s.ListenAndServe())
+		err := s.ListenAndServe()
+		log.Info("s.ListenAndServe(): ", err)
+		stopHub <- nil
+		<- stopHub
+		log.Warn("shutdown <- nil")
+		shutdown <- nil
 	}()
 
 	<-stopSignal
-	s.Shutdown(context.Background())
+	log.Warn("startWebSocketServer. ", "<-stopSignal")
+	err := s.Shutdown(context.TODO())
+	if err != nil {
+		log.Error(err)
+	} else {
+		log.Info("No error on shutdown")
+	}
+	<- shutdown
+	log.Info("Program finished")
 }
 
 func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {

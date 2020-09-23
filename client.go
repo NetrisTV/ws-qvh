@@ -1,7 +1,3 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -15,16 +11,9 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer.
 	writeWait = 100 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
 	pongWait = 600 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
 	maxMessageSize = 512
 )
 
@@ -41,35 +30,19 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Client is a middleman between the websocket connection and the client.
 type Client struct {
 	hub *Hub
-
-	// The websocket connection.
 	conn *websocket.Conn
-
-	// Buffered channel of outbound messages.
-	send chan []byte
-
+	send *chan []byte
 	stopSignal chan interface{}
-
-	closed bool
-
 	receiver *ReceiverHub
-
 	wda *WdaHub
 }
 
-// readPump pumps messages from the websocket connection to the hub.
-//
-// The application runs readPump in a per-connection goroutine. The application
-// ensures that there is at most one reader on a connection by executing all
-// reads from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
 		log.Info("readPump. defer")
 		c.hub.unregister <- c
-		c.stop()
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -92,9 +65,9 @@ func (c *Client) readPump() {
 		} else {
 			switch m.Command {
 			case "list":
-				c.send <- devices()
+				*c.send <- devices()
 			case "activate":
-				c.send <- activate(m.UDID)
+				*c.send <- activate(m.UDID)
 			case "stream":
 				log.Info("command: \"stream\"")
 				c.stream(m.UDID)
@@ -107,12 +80,6 @@ func (c *Client) readPump() {
 		}
 	}
 }
-
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -122,20 +89,17 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case message, ok := <-*c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The client closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
 			w, err := c.conn.NextWriter(websocket.BinaryMessage)
 			if err != nil {
 				return
 			}
 			w.Write(message)
-
 			if err := w.Close(); err != nil {
 				return
 			}
@@ -149,7 +113,12 @@ func (c *Client) writePump() {
 }
 
 func (c *Client) stop() {
-	c.closed = true
+	if c.send == nil {
+		log.Warn("Client.stop() called more then once")
+		return
+	}
+	close(*c.send)
+	c.send = nil
 	if c.stopSignal != nil {
 		c.stopSignal <- nil
 	}
@@ -169,18 +138,16 @@ func (c *Client) stream(udid string) {
 	}()
 }
 
-// serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	send := make(chan []byte, 256)
+	client := &Client{hub: hub, conn: conn, send: &send}
 	client.hub.register <- client
 
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
 	go client.writePump()
 	go client.readPump()
 

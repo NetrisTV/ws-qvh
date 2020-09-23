@@ -28,24 +28,36 @@ func (w *WdaHub) AddClient (c *Client) {
 	}
 	w.clients[c] = false
 	if w.wdaUrl != nil {
+		log.Debug("Send stored wdaUrl to client")
 		w.clients[c] = true
-		c.send <- *w.wdaUrl
+		if c.send != nil {
+			*c.send <- *w.wdaUrl
+		}
 		return
 	}
 	if w.tempChannel != nil {
 		return
 	}
 	if w.tempChannel == nil {
+		log.Debug("Run new WDA process")
 		w.tempChannel = make(chan *[]byte)
 		wdaProcess := NewWdaProcess(&w.tempChannel)
 		go func() {
 			wdaProcess.Start(w.udid)
 		}()
 	}
-	result := <- w.tempChannel
+	w.wdaUrl = <- w.tempChannel
 	for client, receivedUrl := range w.clients {
-		if !receivedUrl && !client.closed {
-			client.send <- *result
+		send := client.send
+		if send == nil {
+			continue
+		}
+		if !receivedUrl {
+			select {
+			case *send <- *w.wdaUrl:
+			default:
+				log.Warn("Failed to send wdaUrl to client")
+			}
 		}
 	}
 }
