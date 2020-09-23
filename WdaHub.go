@@ -53,11 +53,14 @@ func (w *WdaHub) AddClient (c *Client) {
 			continue
 		}
 		if !receivedUrl {
-			select {
-			case *send <- *w.wdaUrl:
-			default:
-				log.Warn("Failed to send wdaUrl to client")
+			var message DeviceMessage
+			if w.wdaUrl == nil {
+				// TODO: send correct error code and message
+				message = NewWdaUrlMessage(-1, []byte("failed"));
+			} else {
+				message = NewWdaUrlMessage(0, *w.wdaUrl)
 			}
+			*send <- *message.Bytes()
 		}
 	}
 }

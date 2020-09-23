@@ -19,7 +19,7 @@ type detailsEntry struct {
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
 	addr := ":8080"
 	dir := "dist"
 	if len(os.Args) > 1 {
