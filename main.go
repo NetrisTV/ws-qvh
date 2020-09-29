@@ -139,7 +139,7 @@ func toErrJSON(err error, msg string) []byte {
 	})
 }
 
-func toJSON(output map[string]interface{}) []byte {
+func toJSON(output interface{}) []byte {
 	text, err := json.Marshal(output)
 	if err != nil {
 		log.Fatalf("Broken json serialization, error: %s", err)

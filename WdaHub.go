@@ -8,8 +8,8 @@ type WdaHub struct {
 	clients    map[*Client]bool
 	stopSignal chan interface{}
 	udid string
-	wdaUrl *[]byte
-	tempChannel chan *[]byte
+	wdaUrl *string
+	tempChannel chan *string
 }
 
 func NewWdaHub(stopSignal chan interface{}, udid string) *WdaHub {
@@ -31,7 +31,7 @@ func (w *WdaHub) AddClient (c *Client) {
 		log.Debug("Send stored wdaUrl to client")
 		w.clients[c] = true
 		if c.send != nil {
-			*c.send <- *w.wdaUrl
+			*c.send <- toJSON(NewMessageRunWda(w.udid, 0, *w.wdaUrl))
 		}
 		return
 	}
@@ -40,7 +40,7 @@ func (w *WdaHub) AddClient (c *Client) {
 	}
 	if w.tempChannel == nil {
 		log.Debug("Run new WDA process")
-		w.tempChannel = make(chan *[]byte)
+		w.tempChannel = make(chan *string)
 		wdaProcess := NewWdaProcess(&w.tempChannel)
 		go func() {
 			wdaProcess.Start(w.udid)
@@ -53,14 +53,14 @@ func (w *WdaHub) AddClient (c *Client) {
 			continue
 		}
 		if !receivedUrl {
-			var message DeviceMessage
+			var message []byte
 			if w.wdaUrl == nil {
 				// TODO: send correct error code and message
-				message = NewWdaUrlMessage(-1, []byte("failed"));
+				message = toJSON(NewMessageRunWda(w.udid, -1, "failed"))
 			} else {
-				message = NewWdaUrlMessage(0, *w.wdaUrl)
+				message = toJSON(NewMessageRunWda(w.udid, 0, *w.wdaUrl))
 			}
-			*send <- *message.Bytes()
+			*send <- message
 		}
 	}
 }

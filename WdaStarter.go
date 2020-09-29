@@ -17,7 +17,7 @@ const (
 )
 
 type WdaProcess struct {
-	result *chan *[]byte
+	result *chan *string
 	str []rune
 	pos int
 	old []byte
@@ -77,8 +77,7 @@ func (w *WdaProcess) Write(p []byte) (n int, err error) {
 						if w.step == 1 {
 							w.found = true
 							fmt.Println("\nFound", w.value)
-							bytes := []byte(w.value)
-							*w.result <- &bytes
+							*w.result <- &w.value
 							return len(p), nil
 						}
 					}
@@ -118,7 +117,7 @@ func (w *WdaProcess) Start(udid string) {
 	}()
 }
 
-func NewWdaProcess(ch *chan *[]byte) *WdaProcess {
+func NewWdaProcess(ch *chan *string) *WdaProcess {
 	return &WdaProcess{
 		str: []rune(Begin),
 		pos: 0,
