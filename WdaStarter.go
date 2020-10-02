@@ -2,10 +2,9 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	log "github.com/sirupsen/logrus"
+	"io"
 	"os/exec"
 	"strings"
 	"unicode"
@@ -13,17 +12,19 @@ import (
 
 const (
 	Begin = "ServerURLHere->"
-	End = "<-ServerURLHere"
+	End   = "<-ServerURLHere"
 )
 
 type WdaProcess struct {
-	result *chan *string
-	str []rune
-	pos int
-	old []byte
-	step int
-	value string
-	found bool
+	udid   string
+	result *chan *MessageRunWda
+	exit   *chan interface{}
+	str    []rune
+	pos    int
+	old    []byte
+	step   int
+	value  string
+	found  bool
 }
 
 func (w *WdaProcess) Write(p []byte) (n int, err error) {
@@ -51,15 +52,15 @@ func (w *WdaProcess) Write(p []byte) (n int, err error) {
 				fmt.Print(string(c))
 				n += sz
 				if w.str[w.pos] == c {
-					w.pos ++
+					w.pos++
 				} else {
 					if w.step == 1 {
 						if w.pos != 0 {
-							w.value += string(w.str[0: w.pos])
+							w.value += string(w.str[0:w.pos])
 							w.pos = 0
 						}
 						if w.str[w.pos] == c {
-							w.pos ++
+							w.pos++
 						} else {
 							w.value += string(c)
 						}
@@ -77,7 +78,9 @@ func (w *WdaProcess) Write(p []byte) (n int, err error) {
 						if w.step == 1 {
 							w.found = true
 							fmt.Println("\nFound", w.value)
-							*w.result <- &w.value
+							msg := NewMessageRunWda(w.udid, 0, w.value)
+							*w.result <- &msg
+							w.result = nil
 							return len(p), nil
 						}
 					}
@@ -90,14 +93,14 @@ func (w *WdaProcess) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (w *WdaProcess) Start(udid string) {
+func (w *WdaProcess) Start() {
 	cmd := exec.Command("xcodebuild", "test-without-building",
 		"-project",
 		"./WebDriverAgent/WebDriverAgent.xcodeproj",
 		"-scheme",
 		"WebDriverAgentRunner",
 		"-destination",
-		"id=" + string(bytes.Trim([]byte (udid), "\x00")),
+		"id="+strings.Trim(w.udid, "\x00"),
 		"-xcconfig",
 		"./wda-build.xcconfig")
 	cmd.Stdout = w
@@ -105,23 +108,48 @@ func (w *WdaProcess) Start(udid string) {
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
-		*w.result <- nil
+		if w.result != nil {
+			//log.Info("WdaProcess.Start: cmd.Start() *w.result <- nil")
+			*w.result <- nil
+			w.result = nil
+		}
 		return
 	}
 	go func() {
-		err = cmd.Wait()
+		rr := cmd.Wait()
+		select {
+		case *w.exit <- nil:
+			break
+		default:
+			break
+		}
 		if !w.found {
-			log.Info("Finished: ", err)
-			*w.result <- nil
+			if exitError, ok := rr.(*exec.ExitError); ok {
+				waitStatus := exitError.ExitCode()
+				if w.result != nil {
+					msg := NewMessageRunWda(w.udid, waitStatus, "failed")
+					//log.Info("WdaProcess.Start: cmd.Wait() *w.result <- &msg")
+					*w.result <- &msg
+					w.result = nil
+				}
+			}
+			log.Info("Finished: ", rr)
+			if w.result != nil {
+				//log.Info("WdaProcess.Start: cmd.Wait() *w.result <- nil")
+				*w.result <- nil
+				w.result = nil
+			}
 		}
 	}()
 }
 
-func NewWdaProcess(ch *chan *string) *WdaProcess {
+func NewWdaProcess(udid string, ch *chan *MessageRunWda, exit *chan interface{}) *WdaProcess {
 	return &WdaProcess{
-		str: []rune(Begin),
-		pos: 0,
-		value: "",
+		udid:   udid,
+		str:    []rune(Begin),
+		pos:    0,
+		value:  "",
 		result: ch,
+		exit:   exit,
 	}
 }

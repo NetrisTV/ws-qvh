@@ -5,17 +5,17 @@ import (
 )
 
 type WdaHub struct {
-	clients    map[*Client]bool
-	stopSignal chan interface{}
-	udid string
-	wdaUrl *string
-	tempChannel chan *string
+	clients     map[*Client]bool
+	exitSignal  chan interface{}
+	udid        string
+	message     *MessageRunWda
+	tempChannel chan *MessageRunWda
 }
 
-func NewWdaHub(stopSignal chan interface{}, udid string) *WdaHub {
+func NewWdaHub(udid string) *WdaHub {
 	return &WdaHub{
 		clients: make(map[*Client]bool),
-		stopSignal: stopSignal,
+		exitSignal: make(chan interface{}),
 		udid: udid,
 	}
 }
@@ -23,15 +23,15 @@ func NewWdaHub(stopSignal chan interface{}, udid string) *WdaHub {
 func (w *WdaHub) AddClient (c *Client) {
 	_, ok := w.clients[c]
 	if ok {
-		log.Warn("Client already added")
+		log.Warn("WdaHub. ", "Client already added")
 		return
 	}
 	w.clients[c] = false
-	if w.wdaUrl != nil {
-		log.Debug("Send stored wdaUrl to client")
+	if w.message != nil {
+		log.Debug("Send stored message to client")
 		w.clients[c] = true
 		if c.send != nil {
-			*c.send <- toJSON(NewMessageRunWda(w.udid, 0, *w.wdaUrl))
+			*c.send <- toJSON(w.message)
 		}
 		return
 	}
@@ -40,26 +40,20 @@ func (w *WdaHub) AddClient (c *Client) {
 	}
 	if w.tempChannel == nil {
 		log.Debug("Run new WDA process")
-		w.tempChannel = make(chan *string)
-		wdaProcess := NewWdaProcess(&w.tempChannel)
+		w.tempChannel = make(chan *MessageRunWda)
+		wdaProcess := NewWdaProcess(w.udid, &w.tempChannel, &w.exitSignal)
 		go func() {
-			wdaProcess.Start(w.udid)
+			wdaProcess.Start()
 		}()
 	}
-	w.wdaUrl = <- w.tempChannel
+	w.message = <- w.tempChannel
+	message := toJSON(w.message)
 	for client, receivedUrl := range w.clients {
 		send := client.send
 		if send == nil {
 			continue
 		}
 		if !receivedUrl {
-			var message []byte
-			if w.wdaUrl == nil {
-				// TODO: send correct error code and message
-				message = toJSON(NewMessageRunWda(w.udid, -1, "failed"))
-			} else {
-				message = toJSON(NewMessageRunWda(w.udid, 0, *w.wdaUrl))
-			}
 			*send <- message
 		}
 	}

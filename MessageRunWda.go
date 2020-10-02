@@ -2,7 +2,7 @@ package main
 
 type MessageBody struct {
 	Udid string `json:"udid"`
-	Code int32 `json:"code"`
+	Code int `json:"code"`
 	Text string `json:"text"`
 }
 
@@ -11,7 +11,7 @@ type MessageRunWda struct {
 	Data MessageBody `json:"data"`
 }
 
-func NewMessageRunWda(udid string, code int32, text string) MessageRunWda {
+func NewMessageRunWda(udid string, code int, text string) MessageRunWda {
 	return MessageRunWda{
 		Type: "run-wda",
 		Data: MessageBody{

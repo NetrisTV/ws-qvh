@@ -37,13 +37,20 @@ func (h *Hub) getOrCreateReceiver(udid string) *ReceiverHub {
 }
 
 func (h *Hub) getOrCreateWdAgent(udid string) *WdaHub {
+	//log.Info("Hub.getOrCreateWdAgent. " + udid)
 	var wda *WdaHub
 	wda = h.webDriverAgents[udid]
 	if wda != nil {
+		//log.Info("Hub.getOrCreateWdAgent. Found!")
 		return wda
 	}
-	wda = NewWdaHub(h.stopSignal, udid)
+	//log.Info("Hub.getOrCreateWdAgent. Creating new!")
+	wda = NewWdaHub(udid)
 	h.webDriverAgents[udid] = wda
+	go func() {
+		<-wda.exitSignal
+		h.deleteWdAgent(wda)
+	}()
 	return wda
 }
 
@@ -52,23 +59,31 @@ func (h *Hub) unregisterClient(client *Client) {
 		receiver := client.receiver
 		if receiver != nil {
 			receiver.DelClient(client)
-			if len(receiver.clients) == 0 {
-				udid := receiver.udid
-				delete(h.receivers, udid)
-			}
 		}
 		wda := client.wda
 		if wda != nil {
 			wda.DelClient(client)
-			if len(wda.clients) == 0 {
-				udid := wda.udid
-				delete(h.webDriverAgents, udid)
-			}
 		}
 		client.stop()
 		delete(h.clients, client)
 		log.Info("Unregister client. Left: ", len(h.clients))
 	}
+}
+
+func (h *Hub) deleteReceiver(receiver *ReceiverHub) {
+	udid := receiver.udid
+	//log.Info("Hub.deleteReceiver. " + udid);
+	delete(h.receivers, udid)
+	wda := h.webDriverAgents[udid]
+	if wda != nil {
+		h.deleteWdAgent(wda)
+	}
+}
+
+func (h *Hub) deleteWdAgent(wda *WdaHub) {
+	udid := wda.udid
+	//log.Info("Hub.deleteWdAgent. " + udid);
+	delete(h.webDriverAgents, udid)
 }
 
 func (h *Hub) run(stopSignal chan interface{}) {
@@ -80,7 +95,26 @@ func (h *Hub) run(stopSignal chan interface{}) {
 			for client := range h.clients {
 				h.unregisterClient(client)
 			}
-			stopSignal <- nil
+			for _, receiver := range h.receivers {
+				select {
+				case receiver.stopSignal <- nil:
+					//log.Info("Hub.run ", "receiver.stopSignal <- nil")
+					break
+				default:
+					//log.Info("Hub.run ", "receiver.stopSignal ?? default")
+					break
+				}
+			}
+			// all related WDA will stop because of usb reconfiguration
+
+			select {
+			case stopSignal <- nil:
+				//log.Info("Hub.run ", "stopSignal <- nil")
+				break
+			default:
+				//log.Info("Hub.run ", "stopSignal ?? default")
+				break
+			}
 		case client := <-h.register:
 			h.clients[client] = true
 			log.Info("New client. ", len(h.clients))
