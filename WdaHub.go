@@ -14,13 +14,13 @@ type WdaHub struct {
 
 func NewWdaHub(udid string) *WdaHub {
 	return &WdaHub{
-		clients: make(map[*Client]bool),
+		clients:    make(map[*Client]bool),
 		exitSignal: make(chan interface{}),
-		udid: udid,
+		udid:       udid,
 	}
 }
 
-func (w *WdaHub) AddClient (c *Client) {
+func (w *WdaHub) AddClient(c *Client) {
 	_, ok := w.clients[c]
 	if ok {
 		log.Warn("WdaHub. ", "Client already added")
@@ -46,7 +46,7 @@ func (w *WdaHub) AddClient (c *Client) {
 			wdaProcess.Start()
 		}()
 	}
-	w.message = <- w.tempChannel
+	w.message = <-w.tempChannel
 	message := toJSON(w.message)
 	for client, receivedUrl := range w.clients {
 		send := client.send
@@ -58,7 +58,6 @@ func (w *WdaHub) AddClient (c *Client) {
 		}
 	}
 }
-
 
 func (w *WdaHub) DelClient(c *Client) {
 	delete(w.clients, c)

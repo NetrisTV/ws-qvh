@@ -52,7 +52,7 @@ func startWebSocketServer(addr string, dir string) {
 		err := s.ListenAndServe()
 		log.Info("s.ListenAndServe(): ", err)
 		stopHub <- nil
-		<- stopHub
+		<-stopHub
 		log.Warn("shutdown <- nil")
 		shutdown <- nil
 	}()
@@ -65,7 +65,7 @@ func startWebSocketServer(addr string, dir string) {
 	} else {
 		log.Info("No error on shutdown")
 	}
-	<- shutdown
+	<-shutdown
 	log.Info("Program finished")
 }
 

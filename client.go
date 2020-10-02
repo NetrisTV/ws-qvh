@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	writeWait = 100 * time.Second
-	pongWait = 600 * time.Second
-	pingPeriod = (pongWait * 9) / 10
+	writeWait      = 100 * time.Second
+	pongWait       = 600 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 512
 )
 
@@ -31,12 +31,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub *Hub
-	conn *websocket.Conn
-	send *chan []byte
+	hub        *Hub
+	conn       *websocket.Conn
+	send       *chan []byte
 	stopSignal chan interface{}
-	receiver *ReceiverHub
-	wda *WdaHub
+	receiver   *ReceiverHub
+	wda        *WdaHub
 }
 
 func (c *Client) readPump() {
@@ -163,4 +163,3 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-

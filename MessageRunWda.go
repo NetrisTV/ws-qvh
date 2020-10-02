@@ -2,12 +2,12 @@ package main
 
 type MessageBody struct {
 	Udid string `json:"udid"`
-	Code int `json:"code"`
+	Code int    `json:"code"`
 	Text string `json:"text"`
 }
 
 type MessageRunWda struct {
-	Type string `json:"type"`
+	Type string      `json:"type"`
 	Data MessageBody `json:"data"`
 }
 
