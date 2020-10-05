@@ -1,4 +1,4 @@
-module github.com/drauggres/ws-qvh
+module github.com/NetrisTV/ws-qvh
 
 go 1.15
 
