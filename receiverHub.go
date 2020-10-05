@@ -58,7 +58,6 @@ func (r *ReceiverHub) AddClient(c *Client) {
 	}
 	status := &ClientReceiveStatus{}
 	r.clients[c] = status
-	//log.Info("ReceiverHub.AddClient. ", "r.streaming: ", r.streaming)
 	if !r.streaming {
 		r.streaming = true
 		r.stopReading = make(chan interface{})
@@ -67,10 +66,8 @@ func (r *ReceiverHub) AddClient(c *Client) {
 	}
 	select {
 	case r.timeoutChannel <- false:
-		//log.Info("ReceiverHub.AddClient. ", "Sending doStop: `false`")
 		break
 	default:
-		//log.Info("ReceiverHub.AddClient. ", "Nobody cares (timeoutChannel)")
 		break
 	}
 }
@@ -78,24 +75,18 @@ func (r *ReceiverHub) AddClient(c *Client) {
 func (r *ReceiverHub) DelClient(c *Client) {
 	delete(r.clients, c)
 	if len(r.clients) == 0 {
-		//log.Info("ReceiverHub.DelClient. ", "No clients")
 		go func() {
-			//log.Info("ReceiverHub.DelClient. ", "Waiting 10 seconds...")
 			time.Sleep(10 * time.Second)
 			select {
 			case r.timeoutChannel <- true:
-				//log.Info("ReceiverHub.DelClient. ", "Sending doStop: `true`")
 				break
 			default:
-				//log.Info("ReceiverHub.DelClient. ", "Nobody cares (timeoutChannel)")
 				break
 			}
 		}()
 		go func() {
 			doStop := <-r.timeoutChannel
-			//log.Info("ReceiverHub.DelClient. ", "Received doStop: `", doStop,"`")
 			if doStop {
-				//log.Info("ReceiverHub.DelClient. ", "r.streaming = false")
 				c.hub.deleteReceiver(r)
 				r.streaming = false
 				r.closed = true
@@ -106,7 +97,6 @@ func (r *ReceiverHub) DelClient(c *Client) {
 }
 
 func (r *ReceiverHub) stream() {
-	//log.Info("ReceiverHub.stream ")
 	var udid = r.udid
 	device, err := screencapture.FindIosDevice(udid)
 	if err != nil {
@@ -131,24 +121,19 @@ func (r *ReceiverHub) stream() {
 }
 
 func (r *ReceiverHub) run() {
-	//log.Info("ReceiverHub.run ")
 	for {
 		select {
 		case <-r.stopSignal:
-			//log.Info("ReceiverHub.run ", "<-r.stopSignal")
 			for client := range r.clients {
 				delete(r.clients, client)
 			}
 			r.closed = true
-			//log.Info("ReceiverHub.run ", "r.streaming = false")
 			r.streaming = false
 			r.stopReading <- nil
 			select {
 			case r.timeoutChannel <- true:
-				//log.Info("ReceiverHub.run ", "Sending doStop: `false`")
 				break
 			default:
-				//log.Info("ReceiverHub.run ", "Nobody cares (timeoutChannel)")
 				break
 			}
 		case data := <-r.send:

@@ -50,15 +50,15 @@ func startWebSocketServer(addr string, dir string) {
 	})
 	go func() {
 		err := s.ListenAndServe()
-		log.Info("s.ListenAndServe(): ", err)
+		if err != nil {
+			log.Info("s.ListenAndServe(): ", err)
+		}
 		stopHub <- nil
 		<-stopHub
-		log.Warn("shutdown <- nil")
 		shutdown <- nil
 	}()
 
 	<-stopSignal
-	log.Warn("startWebSocketServer. ", "<-stopSignal")
 	err := s.Shutdown(context.TODO())
 	if err != nil {
 		log.Error(err)

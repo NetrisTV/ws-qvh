@@ -37,14 +37,11 @@ func (h *Hub) getOrCreateReceiver(udid string) *ReceiverHub {
 }
 
 func (h *Hub) getOrCreateWdAgent(udid string) *WdaHub {
-	//log.Info("Hub.getOrCreateWdAgent. " + udid)
 	var wda *WdaHub
 	wda = h.webDriverAgents[udid]
 	if wda != nil {
-		//log.Info("Hub.getOrCreateWdAgent. Found!")
 		return wda
 	}
-	//log.Info("Hub.getOrCreateWdAgent. Creating new!")
 	wda = NewWdaHub(udid)
 	h.webDriverAgents[udid] = wda
 	go func() {
@@ -72,7 +69,6 @@ func (h *Hub) unregisterClient(client *Client) {
 
 func (h *Hub) deleteReceiver(receiver *ReceiverHub) {
 	udid := receiver.udid
-	//log.Info("Hub.deleteReceiver. " + udid);
 	delete(h.receivers, udid)
 	wda := h.webDriverAgents[udid]
 	if wda != nil {
@@ -82,7 +78,6 @@ func (h *Hub) deleteReceiver(receiver *ReceiverHub) {
 
 func (h *Hub) deleteWdAgent(wda *WdaHub) {
 	udid := wda.udid
-	//log.Info("Hub.deleteWdAgent. " + udid);
 	delete(h.webDriverAgents, udid)
 }
 
@@ -91,17 +86,15 @@ func (h *Hub) run(stopSignal chan interface{}) {
 	for {
 		select {
 		case <-stopSignal:
-			log.Info("Hub <- stopSignal")
+			log.Debug("Hub <- stopSignal")
 			for client := range h.clients {
 				h.unregisterClient(client)
 			}
 			for _, receiver := range h.receivers {
 				select {
 				case receiver.stopSignal <- nil:
-					//log.Info("Hub.run ", "receiver.stopSignal <- nil")
 					break
 				default:
-					//log.Info("Hub.run ", "receiver.stopSignal ?? default")
 					break
 				}
 			}
@@ -109,17 +102,15 @@ func (h *Hub) run(stopSignal chan interface{}) {
 
 			select {
 			case stopSignal <- nil:
-				//log.Info("Hub.run ", "stopSignal <- nil")
 				break
 			default:
-				//log.Info("Hub.run ", "stopSignal ?? default")
 				break
 			}
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Info("New client. ", len(h.clients))
+			log.Debug("Hub <- <-h.register. Total: ", len(h.clients))
 		case client := <-h.unregister:
-			log.Info("Hub <- h.unregister")
+			log.Debug("Hub <- <-h.unregister. Total: ", len(h.clients))
 			h.unregisterClient(client)
 		case message := <-h.broadcast:
 			for client := range h.clients {
@@ -135,6 +126,6 @@ func (h *Hub) run(stopSignal chan interface{}) {
 				}
 			}
 		}
-		log.Info("Clients count: ", len(h.clients))
+		log.Debug("Clients count: ", len(h.clients))
 	}
 }

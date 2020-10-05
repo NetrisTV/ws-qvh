@@ -109,7 +109,6 @@ func (w *WdaProcess) Start() {
 	if err != nil {
 		log.Fatal(err)
 		if w.result != nil {
-			//log.Info("WdaProcess.Start: cmd.Start() *w.result <- nil")
 			*w.result <- nil
 			w.result = nil
 		}
@@ -128,14 +127,12 @@ func (w *WdaProcess) Start() {
 				waitStatus := exitError.ExitCode()
 				if w.result != nil {
 					msg := NewMessageRunWda(w.udid, waitStatus, "failed")
-					//log.Info("WdaProcess.Start: cmd.Wait() *w.result <- &msg")
 					*w.result <- &msg
 					w.result = nil
 				}
 			}
-			log.Info("Finished: ", rr)
+			log.Debug("Finished: ", rr)
 			if w.result != nil {
-				//log.Info("WdaProcess.Start: cmd.Wait() *w.result <- nil")
 				*w.result <- nil
 				w.result = nil
 			}
