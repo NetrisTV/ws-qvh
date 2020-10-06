@@ -138,10 +138,10 @@ func (r *ReceiverHub) run() {
 			}
 		case data := <-r.send:
 			for client, status := range r.clients {
-				send := client.send
-				if send == nil {
+				if client.send == nil {
 					continue
 				}
+				client.mutex.Lock()
 				nalUnitType := data[4] & 31
 				if nalUnitType == PPS {
 					r.storeNalUnit(&r.pps, &data)
@@ -151,37 +151,41 @@ func (r *ReceiverHub) run() {
 					r.storeNalUnit(&r.sei, &data)
 				}
 				if status.gotIFrame {
-					*send <- data
+					*client.send <- data
 				} else {
 					if !status.gotPPS && r.pps != nil {
 						status.gotPPS = true
-						*send <- r.pps
+						*client.send <- r.pps
 						if nalUnitType == PPS {
+							client.mutex.Unlock()
 							continue
 						}
 					}
 					if !status.gotSPS && r.sps != nil {
 						status.gotSPS = true
-						*send <- r.sps
+						*client.send <- r.sps
 						if nalUnitType == SPS {
+							client.mutex.Unlock()
 							continue
 						}
 					}
 					if !status.gotSEI && r.sei != nil {
 						status.gotSEI = true
-						*send <- r.sei
+						*client.send <- r.sei
 						if nalUnitType == SEI {
+							client.mutex.Unlock()
 							continue
 						}
 					}
 					isIframe := nalUnitType == IDR
 					if status.gotPPS && status.gotSPS && status.gotSEI && isIframe {
 						status.gotIFrame = true
-						*send <- data
+						*client.send <- data
 					} else {
 						// log.Info("Receiver. ", "skipping frame for client: ", nalUnitType)
 					}
 				}
+				client.mutex.Unlock()
 			}
 		}
 	}

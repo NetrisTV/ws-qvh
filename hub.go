@@ -114,16 +114,17 @@ func (h *Hub) run(stopSignal chan interface{}) {
 			h.unregisterClient(client)
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				send := client.send
-				if send == nil {
+				if client.send == nil {
 					continue
 				}
+				client.mutex.Lock()
 				select {
-				case *send <- message:
+				case *client.send <- message:
 				default:
 					client.stop()
 					delete(h.clients, client)
 				}
+				client.mutex.Unlock()
 			}
 		}
 		log.Debug("Clients count: ", len(h.clients))

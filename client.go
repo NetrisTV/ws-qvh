@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,7 @@ type Client struct {
 	stopSignal chan interface{}
 	receiver   *ReceiverHub
 	wda        *WdaHub
+	mutex	*sync.Mutex
 }
 
 func (c *Client) readPump() {
@@ -115,11 +117,13 @@ func (c *Client) stop() {
 		log.Warn("Client.stop() called more then once")
 		return
 	}
+	c.mutex.Lock()
 	close(*c.send)
 	c.send = nil
 	if c.stopSignal != nil {
 		c.stopSignal <- nil
 	}
+	c.mutex.Unlock()
 }
 
 func (c *Client) runWda(udid string) {
@@ -143,7 +147,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send := make(chan []byte, 256)
-	client := &Client{hub: hub, conn: conn, send: &send}
+	client := &Client{hub: hub, conn: conn, send: &send, mutex: &sync.Mutex{}}
 	client.hub.register <- client
 
 	go client.writePump()
