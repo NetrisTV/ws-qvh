@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/danielpaulus/go-ios/usbmux"
 	"github.com/danielpaulus/quicktime_video_hack/screencapture"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 )
 
 type detailsEntry struct {
@@ -19,7 +21,7 @@ type detailsEntry struct {
 }
 
 func main() {
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.DebugLevel)
 	addr := ":8080"
 	dir := "dist"
 	if len(os.Args) > 1 {
@@ -86,13 +88,41 @@ func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {
 	return allValues
 }
 
-func devices() []byte {
+func usbMuxDevices() []byte {
 	deviceList := usbmux.ListDevices()
 	result := make([]detailsEntry, len(deviceList.DeviceList))
 	for i, device := range deviceList.DeviceList {
 		udid := device.Properties.SerialNumber
 		allValues := getValues(device)
 		result[i] = detailsEntry{udid, allValues.Value.ProductName, allValues.Value.ProductType, allValues.Value.ProductVersion}
+	}
+	text, err := json.Marshal(result)
+	if err != nil {
+		log.Fatalf("Broken json serialization, error: %s", err)
+	}
+	return text
+}
+
+
+// Just dump a list of what was discovered to the console
+func screenCaptureDevices() []byte {
+	deviceList, err := screencapture.FindIosDevices()
+	if err != nil {
+		log.Fatalf("Error finding iOS Devices, error: %s", err)
+	}
+
+	result := make([]detailsEntry, len(deviceList))
+	for i, device := range deviceList {
+		udid := strings.Trim(device.SerialNumber, "\x00")
+		if len(udid) == 24 {
+			udid = fmt.Sprintf("%s-%s", udid[0:8], udid[8:])
+		}
+		result[i] = detailsEntry{
+			Udid: udid,
+			ProductName: device.ProductName,
+			ProductType: "",
+			ProductVersion: "",
+		}
 	}
 	text, err := json.Marshal(result)
 	if err != nil {
@@ -117,6 +147,16 @@ func activate(udid string) []byte {
 	return toJSON(map[string]interface{}{
 		"device_activated": device.DetailsMap(),
 	})
+}
+
+func formatUdid(udid string) (string, error) {
+	if len(udid) == 40 {
+		return udid, nil
+	}
+	if len(udid) == 25 {
+		return strings.Replace(udid, "-", "", 1), nil
+	}
+	return udid, fmt.Errorf("Invalid udid: %s", udid)
 }
 
 func waitForSigInt(stopSignalChannel chan interface{}) {

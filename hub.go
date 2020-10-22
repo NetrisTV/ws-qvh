@@ -52,6 +52,7 @@ func (h *Hub) getOrCreateWdAgent(udid string) *WdaHub {
 }
 
 func (h *Hub) unregisterClient(client *Client) {
+	log.Info("Unregister client.")
 	if _, ok := h.clients[client]; ok {
 		receiver := client.receiver
 		if receiver != nil {
@@ -108,10 +109,10 @@ func (h *Hub) run(stopSignal chan interface{}) {
 			}
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Debug("Hub <- <-h.register. Total: ", len(h.clients))
+			log.Debug("Hub. client := <-h.register. Total: ", len(h.clients))
 		case client := <-h.unregister:
-			log.Debug("Hub <- <-h.unregister. Total: ", len(h.clients))
 			h.unregisterClient(client)
+			log.Debug("Hub. client := <-h.unregister. Total: ", len(h.clients))
 		case message := <-h.broadcast:
 			for client := range h.clients {
 				if client.send == nil {

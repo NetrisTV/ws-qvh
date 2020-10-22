@@ -66,12 +66,22 @@ func (c *Client) readPump() {
 		} else {
 			switch m.Command {
 			case "list":
-				*c.send <- devices()
+				*c.send <- screenCaptureDevices()
 			case "activate":
-				*c.send <- activate(m.UDID)
+				udid, err := formatUdid(m.UDID)
+				if err != nil {
+					*c.send <- toErrJSON(err, "Failed to activate")
+				} else {
+					*c.send <- activate(udid)
+				}
 			case "stream":
 				log.Info("command: \"stream\"")
-				c.stream(m.UDID)
+				udid, err := formatUdid(m.UDID)
+				if err != nil {
+					*c.send <- toErrJSON(err, "Failed to activate")
+				} else {
+					c.stream(udid)
+				}
 			case "run-wda":
 				log.Info("command: \"run-wda\"")
 				c.runWda(m.UDID)
@@ -159,9 +169,15 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 			log.Errorln("Failed to parse query string:" + r.URL.RawQuery)
 			return
 		}
-		udid := m.Get("stream")
-		if udid != "" {
-			client.stream(udid)
+
+		rawUdid := m.Get("stream")
+		if rawUdid != "" {
+			udid, err := formatUdid(rawUdid)
+			if err != nil {
+				*client.send <- toErrJSON(err, "Failed to start stream")
+			} else {
+				client.stream(udid)
+			}
 		}
 	}
 }
