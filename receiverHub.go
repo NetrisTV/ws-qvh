@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/danielpaulus/quicktime_video_hack/screencapture"
 	log "github.com/sirupsen/logrus"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type ReceiverHub struct {
 	sei            []byte
 	pps            []byte
 	sps            []byte
+	mutex          *sync.Mutex
 }
 
 type ClientReceiveStatus struct {
@@ -42,6 +44,7 @@ func NewReceiver(udid string) *ReceiverHub {
 		stopSignal:     make(chan interface{}),
 		timeoutChannel: make(chan bool),
 		udid:           udid,
+		mutex:          &sync.Mutex{},
 	}
 }
 
@@ -73,7 +76,9 @@ func (r *ReceiverHub) AddClient(c *Client) {
 }
 
 func (r *ReceiverHub) DelClient(c *Client) {
+	r.mutex.Lock()
 	delete(r.clients, c)
+	r.mutex.Unlock()
 	if len(r.clients) == 0 {
 		go func() {
 			time.Sleep(10 * time.Second)
@@ -124,19 +129,20 @@ func (r *ReceiverHub) run() {
 	for {
 		select {
 		case <-r.stopSignal:
+			r.mutex.Lock()
 			for client := range r.clients {
 				delete(r.clients, client)
 			}
+			r.mutex.Unlock()
 			r.closed = true
 			r.streaming = false
 			r.stopReading <- nil
 			select {
 			case r.timeoutChannel <- true:
-				break
 			default:
-				break
 			}
 		case data := <-r.send:
+			r.mutex.Lock()
 			for client, status := range r.clients {
 				if client.send == nil {
 					continue
@@ -187,6 +193,7 @@ func (r *ReceiverHub) run() {
 				}
 				client.mutex.Unlock()
 			}
+			r.mutex.Unlock()
 		}
 	}
 }

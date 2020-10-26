@@ -38,7 +38,7 @@ type Client struct {
 	stopSignal chan interface{}
 	receiver   *ReceiverHub
 	wda        *WdaHub
-	mutex	*sync.Mutex
+	mutex      *sync.Mutex
 }
 
 func (c *Client) readPump() {
@@ -131,7 +131,10 @@ func (c *Client) stop() {
 	close(*c.send)
 	c.send = nil
 	if c.stopSignal != nil {
-		c.stopSignal <- nil
+		select {
+		case c.stopSignal <- nil:
+		default:
+		}
 	}
 	c.mutex.Unlock()
 }
