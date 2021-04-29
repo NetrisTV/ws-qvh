@@ -22,18 +22,14 @@ type detailsEntry struct {
 
 func main() {
 	log.SetLevel(log.DebugLevel)
-	addr := ":8080"
-	dir := "dist"
+	addr := "127.0.0.1:8080"
 	if len(os.Args) > 1 {
 		addr = os.Args[1]
 	}
-	if len(os.Args) > 2 {
-		dir = os.Args[2]
-	}
-	startWebSocketServer(addr, dir)
+	startWebSocketServer(addr)
 }
 
-func startWebSocketServer(addr string, dir string) {
+func startWebSocketServer(addr string) {
 	log.Println("Starting WebSocket server")
 	stopSignal := make(chan interface{})
 	stopHub := make(chan interface{})
@@ -44,8 +40,6 @@ func startWebSocketServer(addr string, dir string) {
 
 	m := http.NewServeMux()
 	s := http.Server{Addr: addr, Handler: m}
-
-	m.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir(dir))))
 
 	m.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, w, r)
@@ -88,23 +82,6 @@ func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {
 	return allValues
 }
 
-func usbMuxDevices() []byte {
-	deviceList := usbmux.ListDevices()
-	result := make([]detailsEntry, len(deviceList.DeviceList))
-	for i, device := range deviceList.DeviceList {
-		udid := device.Properties.SerialNumber
-		allValues := getValues(device)
-		result[i] = detailsEntry{udid, allValues.Value.ProductName, allValues.Value.ProductType, allValues.Value.ProductVersion}
-	}
-	text, err := json.Marshal(result)
-	if err != nil {
-		log.Fatalf("Broken json serialization, error: %s", err)
-	}
-	return text
-}
-
-
-// Just dump a list of what was discovered to the console
 func screenCaptureDevices() []byte {
 	deviceList, err := screencapture.FindIosDevices()
 	if err != nil {

@@ -37,7 +37,6 @@ type Client struct {
 	send       *chan []byte
 	stopSignal chan interface{}
 	receiver   *ReceiverHub
-	wda        *WdaHub
 	mutex      *sync.Mutex
 }
 
@@ -82,9 +81,6 @@ func (c *Client) readPump() {
 				} else {
 					c.stream(udid)
 				}
-			case "run-wda":
-				log.Info("command: \"run-wda\"")
-				c.runWda(m.UDID)
 			default:
 				c.hub.broadcast <- message
 			}
@@ -137,13 +133,6 @@ func (c *Client) stop() {
 		}
 	}
 	c.mutex.Unlock()
-}
-
-func (c *Client) runWda(udid string) {
-	c.wda = c.hub.getOrCreateWdAgent(udid)
-	go func() {
-		c.wda.AddClient(c)
-	}()
 }
 
 func (c *Client) stream(udid string) {
