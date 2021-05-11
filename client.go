@@ -37,8 +37,7 @@ type Client struct {
 	send       *chan []byte
 	stopSignal chan interface{}
 	receiver   *ReceiverHub
-	wda        *WdaHub
-	mutex	*sync.Mutex
+	mutex      *sync.Mutex
 }
 
 func (c *Client) readPump() {
@@ -66,15 +65,22 @@ func (c *Client) readPump() {
 		} else {
 			switch m.Command {
 			case "list":
-				*c.send <- devices()
+				*c.send <- screenCaptureDevices()
 			case "activate":
-				*c.send <- activate(m.UDID)
+				udid, err := formatUdid(m.UDID)
+				if err != nil {
+					*c.send <- toErrJSON(err, "Failed to activate")
+				} else {
+					*c.send <- activate(udid)
+				}
 			case "stream":
 				log.Info("command: \"stream\"")
-				c.stream(m.UDID)
-			case "run-wda":
-				log.Info("command: \"run-wda\"")
-				c.runWda(m.UDID)
+				udid, err := formatUdid(m.UDID)
+				if err != nil {
+					*c.send <- toErrJSON(err, "Failed to activate")
+				} else {
+					c.stream(udid)
+				}
 			default:
 				c.hub.broadcast <- message
 			}
@@ -121,16 +127,12 @@ func (c *Client) stop() {
 	close(*c.send)
 	c.send = nil
 	if c.stopSignal != nil {
-		c.stopSignal <- nil
+		select {
+		case c.stopSignal <- nil:
+		default:
+		}
 	}
 	c.mutex.Unlock()
-}
-
-func (c *Client) runWda(udid string) {
-	c.wda = c.hub.getOrCreateWdAgent(udid)
-	go func() {
-		c.wda.AddClient(c)
-	}()
 }
 
 func (c *Client) stream(udid string) {
@@ -159,9 +161,15 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 			log.Errorln("Failed to parse query string:" + r.URL.RawQuery)
 			return
 		}
-		udid := m.Get("stream")
-		if udid != "" {
-			client.stream(udid)
+
+		rawUdid := m.Get("stream")
+		if rawUdid != "" {
+			udid, err := formatUdid(rawUdid)
+			if err != nil {
+				*client.send <- toErrJSON(err, "Failed to start stream")
+			} else {
+				client.stream(udid)
+			}
 		}
 	}
 }

@@ -7,7 +7,6 @@ import (
 type Hub struct {
 	stopSignal      chan interface{}
 	receivers       map[string]*ReceiverHub
-	webDriverAgents map[string]*WdaHub
 	clients         map[*Client]bool
 	broadcast       chan []byte
 	register        chan *Client
@@ -21,7 +20,6 @@ func newHub() *Hub {
 		unregister:      make(chan *Client),
 		clients:         make(map[*Client]bool),
 		receivers:       make(map[string]*ReceiverHub),
-		webDriverAgents: make(map[string]*WdaHub),
 	}
 }
 
@@ -36,30 +34,12 @@ func (h *Hub) getOrCreateReceiver(udid string) *ReceiverHub {
 	return receiver
 }
 
-func (h *Hub) getOrCreateWdAgent(udid string) *WdaHub {
-	var wda *WdaHub
-	wda = h.webDriverAgents[udid]
-	if wda != nil {
-		return wda
-	}
-	wda = NewWdaHub(udid)
-	h.webDriverAgents[udid] = wda
-	go func() {
-		<-wda.exitSignal
-		h.deleteWdAgent(wda)
-	}()
-	return wda
-}
-
 func (h *Hub) unregisterClient(client *Client) {
+	log.Info("Unregister client.")
 	if _, ok := h.clients[client]; ok {
 		receiver := client.receiver
 		if receiver != nil {
 			receiver.DelClient(client)
-		}
-		wda := client.wda
-		if wda != nil {
-			wda.DelClient(client)
 		}
 		client.stop()
 		delete(h.clients, client)
@@ -70,15 +50,6 @@ func (h *Hub) unregisterClient(client *Client) {
 func (h *Hub) deleteReceiver(receiver *ReceiverHub) {
 	udid := receiver.udid
 	delete(h.receivers, udid)
-	wda := h.webDriverAgents[udid]
-	if wda != nil {
-		h.deleteWdAgent(wda)
-	}
-}
-
-func (h *Hub) deleteWdAgent(wda *WdaHub) {
-	udid := wda.udid
-	delete(h.webDriverAgents, udid)
 }
 
 func (h *Hub) run(stopSignal chan interface{}) {
@@ -108,10 +79,10 @@ func (h *Hub) run(stopSignal chan interface{}) {
 			}
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Debug("Hub <- <-h.register. Total: ", len(h.clients))
+			log.Debug("Hub. client := <-h.register. Total: ", len(h.clients))
 		case client := <-h.unregister:
-			log.Debug("Hub <- <-h.unregister. Total: ", len(h.clients))
 			h.unregisterClient(client)
+			log.Debug("Hub. client := <-h.unregister. Total: ", len(h.clients))
 		case message := <-h.broadcast:
 			for client := range h.clients {
 				if client.send == nil {
