@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/danielpaulus/go-ios/usbmux"
+	"github.com/danielpaulus/go-ios/ios"
 	"github.com/danielpaulus/quicktime_video_hack/screencapture"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 )
 
 type detailsEntry struct {
@@ -65,11 +66,18 @@ func startWebSocketServer(addr string) {
 	log.Info("Program finished")
 }
 
-func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {
-	muxConnection := usbmux.NewUsbMuxConnection()
+func getValues(device ios.DeviceEntry) ios.GetAllValuesResponse {
+
+	deviceConn, err := ios.NewDeviceConnection(ios.DefaultUsbmuxdSocket)
+	defer deviceConn.Close()
+	if err != nil {
+		log.Errorf("could not connect to %s with err %+v, will retry in 3 seconds...", ios.DefaultUsbmuxdSocket, err)
+		time.Sleep(time.Second * 3)
+	}
+	muxConnection := ios.NewUsbMuxConnection(deviceConn)
 	defer muxConnection.Close()
 
-	pairRecord := muxConnection.ReadPair(device.Properties.SerialNumber)
+	pairRecord, _ := muxConnection.ReadPair(device.Properties.SerialNumber)
 
 	lockdownConnection, err := muxConnection.ConnectLockdown(device.DeviceID)
 	if err != nil {
@@ -77,7 +85,7 @@ func getValues(device usbmux.DeviceEntry) usbmux.GetAllValuesResponse {
 	}
 	lockdownConnection.StartSession(pairRecord)
 
-	allValues := lockdownConnection.GetValues()
+	allValues, _ := lockdownConnection.GetValues()
 	lockdownConnection.StopSession()
 	return allValues
 }
@@ -95,9 +103,9 @@ func screenCaptureDevices() []byte {
 			udid = fmt.Sprintf("%s-%s", udid[0:8], udid[8:])
 		}
 		result[i] = detailsEntry{
-			Udid: udid,
-			ProductName: device.ProductName,
-			ProductType: "",
+			Udid:           udid,
+			ProductName:    device.ProductName,
+			ProductType:    "",
 			ProductVersion: "",
 		}
 	}
