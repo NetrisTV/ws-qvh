@@ -5,9 +5,10 @@ Web Socket server for streaming the screen of iOS devices.
 ## How it works?
 
 1. [danielpaulus/quicktime_video_hack](https://github.com/danielpaulus/quicktime_video_hack) - video streaming
-2. [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent) - device control
-3. [NetrisTV/ws-scrcpy](https://github.com/NetrisTV/ws-scrcpy) - user interface
-4. [NetrisTV/ws-qvh](https://github.com/NetrisTV/ws-qvh) - forwards the video stream over Web Socket
+2. [danielpaulus/go-ios](https://github.com/danielpaulus/go-ios) - iOS device features
+3. [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent) - device control
+4 [NetrisTV/ws-scrcpy](https://github.com/NetrisTV/ws-scrcpy) - user interface
+5. [NetrisTV/ws-qvh](https://github.com/NetrisTV/ws-qvh) - forwards the video stream over Web Socket
 
 ## Steps to set up
 
