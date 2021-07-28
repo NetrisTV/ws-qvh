@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 )
 
 type detailsEntry struct {
@@ -71,21 +70,25 @@ func getValues(device ios.DeviceEntry) ios.GetAllValuesResponse {
 	deviceConn, err := ios.NewDeviceConnection(ios.DefaultUsbmuxdSocket)
 	defer deviceConn.Close()
 	if err != nil {
-		log.Errorf("could not connect to %s with err %+v, will retry in 3 seconds...", ios.DefaultUsbmuxdSocket, err)
-		time.Sleep(time.Second * 3)
+		log.Errorf("could not connect to %s with err %+v", ios.DefaultUsbmuxdSocket, err)
 	}
 	muxConnection := ios.NewUsbMuxConnection(deviceConn)
 	defer muxConnection.Close()
 
-	pairRecord, _ := muxConnection.ReadPair(device.Properties.SerialNumber)
-
+	pairRecord, err := muxConnection.ReadPair(device.Properties.SerialNumber)
+	if err != nil {
+		log.Errorf("could not read pair records: %+v", err)
+	}
 	lockdownConnection, err := muxConnection.ConnectLockdown(device.DeviceID)
 	if err != nil {
 		log.Fatal(err)
 	}
 	lockdownConnection.StartSession(pairRecord)
 
-	allValues, _ := lockdownConnection.GetValues()
+	allValues, err := lockdownConnection.GetValues()
+	if err != nil {
+		log.Errorf("could not get all values from lock down connection: %+v", err)
+	}
 	lockdownConnection.StopSession()
 	return allValues
 }
