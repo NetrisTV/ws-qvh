@@ -159,18 +159,18 @@ func (r *ReceiverHub) run() {
 				if status.gotIFrame {
 					*client.send <- data
 				} else {
-					if !status.gotPPS && r.pps != nil {
-						status.gotPPS = true
-						*client.send <- r.pps
-						if nalUnitType == PPS {
-							client.mutex.Unlock()
-							continue
-						}
-					}
 					if !status.gotSPS && r.sps != nil {
 						status.gotSPS = true
 						*client.send <- r.sps
 						if nalUnitType == SPS {
+							client.mutex.Unlock()
+							continue
+						}
+					}
+					if !status.gotPPS && r.pps != nil {
+						status.gotPPS = true
+						*client.send <- r.pps
+						if nalUnitType == PPS {
 							client.mutex.Unlock()
 							continue
 						}
