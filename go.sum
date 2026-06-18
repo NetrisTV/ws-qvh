@@ -1,6 +1,9 @@
+github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
 github.com/danielpaulus/go-ios v1.0.13 h1:MFc/QOcNXRY2vv/KRijES/sI0+aHTXfzgEeK6qsZOOU=
 github.com/danielpaulus/go-ios v1.0.13/go.mod h1:k+X7QB2ffFOhTkly/nNwvV1VIysif1MWS1s8GgYXpU4=
+github.com/danielpaulus/go-ios v1.0.24 h1:OTrLkKAFwVjz0rVjurrDvVzE5v5FXyupeNn6jC0sAe8=
+github.com/danielpaulus/go-ios v1.0.24/go.mod h1:k+X7QB2ffFOhTkly/nNwvV1VIysif1MWS1s8GgYXpU4=
 github.com/danielpaulus/quicktime_video_hack v0.0.0-20230104211913-e021966965d4 h1:k5cDWOM9RCcx7/e/aDEyDwE6AAY3Nn0HjoxhP8izZrc=
 github.com/danielpaulus/quicktime_video_hack v0.0.0-20230104211913-e021966965d4/go.mod h1:L5u5Y7S8RIfFQFmxA7Xik4TRISr4pV8gbKo9jEIr5fk=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -18,6 +21,7 @@ github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxv
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 h1:EnfXoSqDfSNJv0VBNqY/88RNnhSGYkrHaO0mmFGbVsc=
 github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40/go.mod h1:vy1vK6wD6j7xX6O6hXe621WabdtNkou2h7uRtTfRMyg=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
