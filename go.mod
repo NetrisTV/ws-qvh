@@ -9,10 +9,12 @@ require (
 )
 
 require (
-	github.com/danielpaulus/go-ios v1.0.13 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/danielpaulus/go-ios v1.0.24 // indirect
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815 // indirect
 	github.com/google/gousb v1.1.2 // indirect
 	github.com/google/uuid v1.1.2 // indirect
+	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a // indirect
 	howett.net/plist v0.0.0-20200419221736-3b63eb3a43b5 // indirect
